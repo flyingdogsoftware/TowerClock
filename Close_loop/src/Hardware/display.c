@@ -141,14 +141,6 @@ void BuildMenu()
   menuItemSetClockMode.type = MENU_ITEM_TYPE_ACTION;
   menuItemSetClockMode.action = &setClockModeUI;
 
-
-
-
-  Menu_Item_Init(&menuItemCalibrate);
-  menuItemCalibrate.title = "Calibrate";
-  menuItemCalibrate.type = MENU_ITEM_TYPE_ACTION;
-  menuItemCalibrate.action = &CalibrateEncoder;
-
   Menu_Item_Init(&menuItemCurrent);
   menuItemCurrent.title = "Current";
   menuItemCurrent.type = MENU_ITEM_TYPE_VARIABLE_UINT8;
@@ -220,7 +212,6 @@ void BuildMenu()
   Menu_Add_Item(&menuMain, &menuItemSetTimeDate);
   Menu_Add_Item(&menuMain, &menuItemSetClockMode);
 
-  Menu_Add_Item(&menuMain, &menuItemCalibrate);
   Menu_Add_Item(&menuMain, &menuItemCurrent);
   Menu_Add_Item(&menuMain, &menuItemStepSize);
   Menu_Add_Item(&menuMain, &menuItemEnablePin);

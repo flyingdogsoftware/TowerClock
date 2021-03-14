@@ -163,61 +163,45 @@ int main(void)
     Calibration_flag = FlashReadHalfWord(Data_Store_Address);
     clockMode = FlashReadHalfWord(Data_Store_Address+6);
     FlashLock();
+                                        
+    Reset_status_flag = 1;                                
 
-    // JaSw: Disable calibration check while testing code
-    //Calibration_flag = 0xAA;
+    // Read parameters                                                         
+    STMFLASH_Read(Data_Store_Address, table1, sizeof(table1)); 
     
-    if(Calibration_flag == 0xAA)
-    {
-        ShowCalibrateOKScreen();
-        LL_mDelay(500);
-                                            
-        Reset_status_flag = 1;                                
+    // Check DIP switches
+    // TODO: Maybe remove DIP switch options, can already
+    // be set via OLED and serial. Will anyway be overriden.           
+    ReadDIPSwitches();
+    //SetModeCheck();                 
+    
+    // Check encoder health.
+    // TODO: Add message to OLED also
+    if (CheckHealth() == false)
+      for(uint8_t m=0;m<10;m++)
+      {
+        LED_H;
+        LL_mDelay(200);
+        LED_L;
+        LL_mDelay(200);	
+      } 
 
-        // Read parameters                                                         
-        STMFLASH_Read(Data_Store_Address, table1, sizeof(table1)); 
-        
-        // Check DIP switches
-        // TODO: Maybe remove DIP switch options, can already
-        // be set via OLED and serial. Will anyway be overriden.           
-        ReadDIPSwitches();
-        //SetModeCheck();                 
-        
-        // Check encoder health.
-        // TODO: Add message to OLED also
-        if (CheckHealth() == false)
-          for(uint8_t m=0;m<10;m++)
-          {
-            LED_H;
-            LL_mDelay(200);
-            LED_L;
-            LL_mDelay(200);	
-          } 
+    // Apply parameters read from flash
+    Currents = table1[1];
+    stepangle = table1[3];
+    Motor_ENmode_flag = table1[5];
+    Motor_Dir = table1[7];
+    
+    kp = table1[11];
+    ki = table1[12];
+    kd = table1[13];
 
-        // Apply parameters read from flash
-        Currents = table1[1];
-        stepangle = table1[3];
-        Motor_ENmode_flag = table1[5];
-        Motor_Dir = table1[7];
-        
-        kp = table1[11];
-        ki = table1[12];
-        kd = table1[13];
+    closemode = 0; // table1[14];
+    if(closemode > 1)     //vc: if saved value is not initialized yet
+      closemode = 0;
+    if(closemode == 1)
+      PID_Cal_value_init();
 
-        closemode = table1[14];
-        if(closemode > 1)     //vc: if saved value is not initialized yet
-          closemode = 0;
-        if(closemode == 1)
-          PID_Cal_value_init();
-    }
-    else
-    {   
-        ShowCalibrateScreen();
-        LL_mDelay(500);
-
-        // Start with menu active to allow user to calibrate
-        menuActive = 1;
-    }
     
 
     
@@ -1231,156 +1215,7 @@ int16_t Mod(int32_t xMod,int16_t mMod)
            
 void CalibrateEncoder(void) 
 {   
-  int32_t encoderReading=0;    
-  int32_t currentencoderReading=0;
-  int32_t lastencoderReading=0;        
-
-  int32_t iStart=0;    
-  int32_t jStart=0;
-  int32_t stepNo=0;
-  
-  int32_t fullStepReadings[200];//
-  int32_t ticks=0;	
-  uint32_t address=0x08008000;//
-
-  uint16_t lookupAngle;
-		
-  // Disable DIR en EN interrupts while calibrating, to be tested still...  
-  //enmode=0;
-  //NVIC_DisableIRQ(EXTI0_1_IRQn);
-  //NVIC_DisableIRQ(EXTI2_3_IRQn);
-                                                              
-  dir=1; 
-  Output(0,80);
-  for(uint8_t m=0;m<4;m++)
-  {
-    LED_H;
-	  LL_mDelay(250);
-    LED_L;
-	  LL_mDelay(250);	
-  }
-  // 200 steps 
-  for(int16_t x=0;x<=199;x++)//
-  {    
-    encoderReading=0;
-   	LL_mDelay(20);                     
-    lastencoderReading = ReadAngle();
-    // Take 10 readings and then average them     
-    for(uint8_t reading=0; reading < 10; reading++) 
-	  { 
-      currentencoderReading = ReadAngle(); 
-      if(currentencoderReading - lastencoderReading < -8192)
-        currentencoderReading += 16384;
-      else if(currentencoderReading - lastencoderReading > 8192)
-        currentencoderReading -= 16384;
  
-      encoderReading += currentencoderReading;
-      LL_mDelay(10);
-      lastencoderReading = currentencoderReading;
-    }
-    encoderReading = encoderReading / 10;
-
-    if(encoderReading > 16384)
-      encoderReading -= 16384;
-    else if(encoderReading < 0)
-      encoderReading += 16384;
-
-    // Store the encoder reading  
-    fullStepReadings[x] = encoderReading;  
-
-    OneStep();
-	  LL_mDelay(100); 
-  }
-  dir=0; 
-  OneStep();
-  LL_mDelay(1000); 
-  for(int16_t x=199;x>=0;x--)//
-  {    
-    encoderReading=0;
-   	LL_mDelay(20);                     
-    lastencoderReading=ReadAngle();     
-    for(uint8_t reading=0;reading<10;reading++) 
-	  { 
-      currentencoderReading=ReadAngle(); 
-      if(currentencoderReading-lastencoderReading<-8192)
-        currentencoderReading+=16384;
-      else if(currentencoderReading-lastencoderReading>8192)
-        currentencoderReading-=16384;
- 
-      encoderReading+=currentencoderReading;
-      LL_mDelay(10);
-      lastencoderReading=currentencoderReading;
-    }
-    encoderReading=encoderReading/10;
-    if(encoderReading>16384)
-      encoderReading-=16384;
-    else if(encoderReading<0)
-      encoderReading+=16384;
-
-    // Average current samples with previous samples  
-    fullStepReadings[x]=(fullStepReadings[x]+encoderReading)/2;  
-    OneStep();
-	LL_mDelay(100); 
-  }
-
-  LL_TIM_OC_SetCompareCH1(TIM3,0);  
-  LL_TIM_OC_SetCompareCH2(TIM3,0); 
-
-  for(uint8_t i=0;i<200;i++)//
-  {
-    ticks=fullStepReadings[(i+1)%200]-fullStepReadings[i%200];
-    if(ticks<-15000) 
-      ticks+=16384;
-    else if(ticks>15000)	
-	  ticks-=16384;	
-
-    for(int32_t j=0;j<ticks;j++) 
-	  {
-      stepNo=(fullStepReadings[i]+j)%16384;
-      if(stepNo==0) 
-      {
-        iStart=i;
-        jStart=j;
-      }
-    }
-  }
-
-  FlashUnlock();
-  FlashErase32K();
-
-  for(int32_t i=iStart;i<(iStart+200+1);i++)//
-  {
-	  ticks=fullStepReadings[(i+1)%200]-fullStepReadings[i%200];
-    if(ticks<-15000) 
-      ticks+=16384;         
-    if(i==iStart) 
-	  { 
-      for(int32_t j=jStart;j<ticks;j++) 
-	    {
-        lookupAngle=(8192*i+8192*j/ticks)%1638400/100;
-		    FlashWriteHalfWord(address,(uint16_t)lookupAngle);
-		    address+=2;
-      }
-    }
-    else if(i==(iStart+200)) 
-	  { 
-      for(int32_t j=0;j<jStart;j++) 
-	    {
-        lookupAngle=((8192*i+8192*j/ticks)%1638400)/100;
-		    FlashWriteHalfWord(address,(uint16_t)lookupAngle);
-		    address+=2;
-      }
-    }
-    else 
-	  {                        //this is the general case
-      for(int32_t j=0;j<ticks;j++) 
-      {
-        lookupAngle=((8192*i+8192*j/ticks)%1638400)/100;
-		    FlashWriteHalfWord(address,(uint16_t)lookupAngle);
-		    address+=2;
-      }
-    }
-  }
   FlashLock();
 
 
@@ -1410,7 +1245,6 @@ void CalibrateEncoder(void)
 
   // Display calibration complete and wait for user restart.
   // TODO: Why restart, maybe auto reload/restart
-  ShowCalibrateCompleteScreen();
   for(;;)
   {
     LED_F;
