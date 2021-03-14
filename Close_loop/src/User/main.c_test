@@ -1,0 +1,318 @@
+/**
+  ******************************************************************************
+  * @file    Examples_LL/RTC/RTC_Calendar/Src/main.c
+  * @author  MCD Application Team
+  * @brief   This sample code shows how to use STM32F7xx RTC LL API to configure
+  *          Time and Date.
+  *          Peripheral initialization done using LL unitary services functions.
+  ******************************************************************************
+  * @attention
+  *
+  * <h2><center>&copy; Copyright (c) 2016 STMicroelectronics.
+  * All rights reserved.</center></h2>
+  *
+  * This software component is licensed by ST under BSD 3-Clause license,
+  * the "License"; You may not use this file except in compliance with the
+  * License. You may obtain a copy of the License at:
+  *                        opensource.org/licenses/BSD-3-Clause
+  *
+  ******************************************************************************
+  */
+
+/* Includes ------------------------------------------------------------------*/
+#include "main.h"
+#include "oled.h"
+#include "display.h"
+#include "usart.h"
+#include "serial.h"
+#include "telemetry.h"
+#include "buttons.h"
+#include "flash.h"
+#include "storage.h"
+#include "menu.h"
+#include "sine.h"
+#include "rtc.h"
+
+// JaSw: Do they need to be signed?
+int16_t kp=30;                //
+int16_t ki=10;                //
+int16_t kd=250;               //
+
+
+const uint8_t LPFA=125; 
+const uint8_t LPFB=3;
+
+int32_t s=0;//
+int32_t s_1=0;
+int32_t s_sum=0;//
+int32_t r=0;
+int32_t r_1=0;
+uint8_t dir=1;//
+int16_t y=0;//
+int16_t y_1=0;
+int32_t yw=0;//
+int32_t yw_1=0;
+int16_t advance=0;//
+int32_t wrap_count=0;//
+int32_t pid_e=0;//
+int32_t iterm=0;//
+int32_t dterm=0;//
+int16_t u=0;//
+int32_t stepnumber=0;//
+uint8_t stepangle=0;//
+
+uint16_t hccount=0;//
+uint8_t closemode;//
+uint8_t enmode=0;//
+
+uint8_t Calibration_flag=0;             //
+volatile uint8_t Data_update_flag =1;   //
+volatile uint16_t Data_update_Count =0; //25ms
+
+uint8_t Second_Calibrate_flag=0;        //
+int16_t Motor_speed =0;
+int16_t wap1=0;
+int16_t wap2=0;
+int16_t Motor_speed_count=0; 
+uint8_t start_measu_V_flag=0;
+uint8_t measure_once_flag=0; 
+
+uint8_t nodeId;                         // JaSw: Motor identification when used in network (CAN). FOR FUTURE USE.
+uint8_t menuActive = 0;                 // JaSw: In-menu = 1 else 0
+volatile uint32_t tickCount;            // JaSw: Used to count system ticks
+uint32_t prevLoopTickCount;
+volatile uint32_t tim6Counter;          // JaSw: Increases each time timer6 interrupts (100uS)
+uint32_t prevTim6Counter;
+bool SoftEnable = 0;                    // JaSw: Software motor enable
+uint16_t softMoveStepCount;
+uint8_t softMoveDirection;
+uint8_t oledClock = 0x00;
+bool streamAngle;
+bool tuningMode;                        // JaSw: Indicates tuning mode, where some normal features are disabled
+
+uint8_t Currents=0;                     //
+uint8_t Motor_Dir=0;                    //
+volatile uint8_t Motor_ENmode_flag=0;   //
+
+uint16_t table1[15];                    //
+volatile uint8_t Reset_status_flag=0;                    
+
+/** @addtogroup STM32F7xx_LL_Examples
+  * @{
+  */
+
+/** @addtogroup RTC_Calendar
+  * @{
+  */
+
+
+
+
+/* Private function prototypes -----------------------------------------------*/
+
+static void MX_GPIO_Init();
+/* Private functions ---------------------------------------------------------*/
+
+/**
+  * @brief  Main program
+  * @param  None
+  * @retval None
+  */
+int main(void)
+{
+
+MX_GPIO_Init();
+
+  
+  /* Configure the system clock to 216 MHz */
+  SystemClock_Config();
+
+        OLED_Init();
+            OLED_ShowString(0,0,"INIT");
+
+  /*##-Configure the RTC peripheral #######################################*/
+  Configure_RTC_Clock();
+            OLED_ShowString(0,0,"Configure Clock...ok");
+
+  /*##-Check if Data stored in BackUp register1: No Need to reconfigure RTC#*/
+  /* Read the Back Up Register 1 Data */
+//  if (LL_RTC_BAK_GetRegister(RTC, LL_RTC_BKP_DR1) != RTC_BKP_DATE_TIME_UPDTATED)
+ // {
+    /*##-Configure the RTC peripheral #######################################*/
+    Configure_RTC();
+            OLED_ShowString(0,0,"Configure RTC   ...ok");
+
+    /* Configure RTC Calendar */
+    Configure_RTC_Calendar();
+ // }
+              OLED_ShowString(0,0,"Configure Calendar.ok");
+
+
+  /* Infinite loop */
+  while (1)
+  {
+    /*##-3- Display the updated Time and Date ################################*/
+    Show_RTC_Calendar();
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+static void MX_GPIO_Init(void)
+{
+  LL_GPIO_InitTypeDef GPIO_InitStruct;
+  LL_EXTI_InitTypeDef EXTI_InitStruct;
+
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
+  LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
+
+  LL_GPIO_ResetOutputPin(LED_GPIO_Port, LED_Pin);
+  LL_GPIO_ResetOutputPin(IN1_GPIO_Port, IN1_Pin);
+  LL_GPIO_ResetOutputPin(IN2_GPIO_Port, IN2_Pin);
+  LL_GPIO_ResetOutputPin(IN4_GPIO_Port, IN4_Pin);
+  LL_GPIO_ResetOutputPin(IN3_GPIO_Port, IN3_Pin);
+
+/*****************************************/
+  GPIO_InitStruct.Pin = CAL_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(CAL_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = CLOSE_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(CLOSE_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = SET2_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(SET2_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = SET1_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(SET1_GPIO_Port, &GPIO_InitStruct);
+/*****************************************************/
+  GPIO_InitStruct.Pin = KEY_Select_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(KEY_Select_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = KEY_Back_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(KEY_Back_GPIO_Port, &GPIO_InitStruct);   
+  
+  GPIO_InitStruct.Pin = KEY_Confirm_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  LL_GPIO_Init(KEY_Confirm_GPIO_Port, &GPIO_InitStruct); 
+  
+/***********************************************/  
+/***************oled IO**************************************/
+  GPIO_InitStruct.Pin = OLED_CS_Pin| OLED_RS_Pin |OLED_SCLK_Pin|OLED_SDIN_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  
+  GPIO_InitStruct.Pin = OLED_RST_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(OLED_RST_GPIO_Port, &GPIO_InitStruct);
+  
+/*************************************************/
+  GPIO_InitStruct.Pin = LED_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = IN1_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(IN1_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = IN2_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(IN2_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = IN4_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(IN4_GPIO_Port, &GPIO_InitStruct);
+
+  GPIO_InitStruct.Pin = IN3_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(IN3_GPIO_Port, &GPIO_InitStruct);
+ /* 
+  GPIO_InitStruct.Pin = NSS_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(NSS_GPIO_Port, &GPIO_InitStruct);
+*/
+  LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE1);
+  LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE2);
+  
+  LL_GPIO_SetPinPull(DIRIN_GPIO_Port, DIRIN_Pin, LL_GPIO_PULL_NO);//
+  LL_GPIO_SetPinPull(ENIN_GPIO_Port, ENIN_Pin, LL_GPIO_PULL_UP);//
+  LL_GPIO_SetPinMode(DIRIN_GPIO_Port, DIRIN_Pin, LL_GPIO_MODE_INPUT);
+  LL_GPIO_SetPinMode(ENIN_GPIO_Port, ENIN_Pin, LL_GPIO_MODE_INPUT);
+
+  EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_1;
+  EXTI_InitStruct.LineCommand = ENABLE;
+  EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
+  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_RISING_FALLING;
+  LL_EXTI_Init(&EXTI_InitStruct);
+
+//  EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_2;
+//  EXTI_InitStruct.LineCommand = ENABLE;
+//  EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
+//  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_RISING_FALLING;
+//  LL_EXTI_Init(&EXTI_InitStruct);
+
+  NVIC_SetPriority(EXTI0_1_IRQn, 0);
+  NVIC_DisableIRQ(EXTI0_1_IRQn);
+//  NVIC_SetPriority(EXTI2_3_IRQn, 1);
+//  NVIC_DisableIRQ(EXTI2_3_IRQn);
+}
+
+/**
+  * @}
+  */
+
+/**
+  * @}
+  */
+
+/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
