@@ -9,12 +9,13 @@
 #define CLOCK_MODE_SECOND 0     // move motor in seconds 1-60
 #define CLOCK_MODE_MINUTE 1     // move motor in minutes 1-60
 #define CLOCK_MODE_HOUR 2     // move motor in hours 12 + minutes between hours
-int clockMode;
+uint8_t clockMode;                  // 0, 1 and 2 see above
+uint8_t ntp;                        // 1: got time signal from ntp
 
 void     SystemClock_Config(void);
 void     Configure_RTC_Clock(void);
 void     Configure_RTC(void);
-void Configure_RTC_Calendar(uint32_t y,uint32_t m,uint32_t d,uint32_t hour,uint32_t minute);
+void Configure_RTC_Calendar(uint32_t y,uint32_t m,uint32_t d,uint32_t hour,uint32_t minute,uint32_t second);
 uint32_t Enter_RTC_InitMode(void);
 uint32_t Exit_RTC_InitMode(void);
 uint32_t WaitForSynchro_RTC(void);

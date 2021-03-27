@@ -48,6 +48,7 @@ enum MSG_ERROR
     MSG_ERROR_SEQUENCE = 1,
     MSG_ERROR_CHECKSUM = 2,
 } error;
+uint8_t pbIndex;
 
 uint8_t parseBuffer[PACKET_LENGTH_MAX];     // Buffer used for parsing the received message
 uint8_t msgLength;                          // Length of the received message without preamble

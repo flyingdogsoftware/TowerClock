@@ -4,8 +4,10 @@
 #include "main.h"
 #include "oled.h"
 #include "buttons.h"
+#include "serial.h"
 
-int clockMode=CLOCK_MODE_SECOND;
+uint8_t clockMode=CLOCK_MODE_SECOND;
+uint8_t ntp;
 
 void SystemClock_Config(void)
 {
@@ -183,6 +185,7 @@ void Configure_RTC_Clock(void)
 
 int curSecond=0;
 int calViewClear=0;
+int curMinute=0;
 /**
   * @brief  Display the current time and date.
   * @param  None
@@ -209,10 +212,13 @@ void Show_RTC_Calendar(void)
   char debug1[30]={0};
   char debug2[30]={0};
   int targetAngle=0;
-
   /* Note: need to convert in decimal value in using __LL_RTC_CONVERT_BCD2BIN helper macro */
   /* Display time Format : hh:mm:ss */
-  sprintf((char*)aShowTime,"%.2d:%.2d:%.2d        ", hour,minute,second);
+  if (!ntp) {
+      sprintf((char*)aShowTime,"%.2d:%.2d:%.2d        ", hour,minute,second);
+  } else {
+          sprintf((char*)aShowTime,"%.2d:%.2d:%.2d NTP    ", hour,minute,second);
+  }
 
   /* Display date Format : mm-dd-yy */
   sprintf((char*)aShowDate,"%.2d-%.2d-%.2d", __LL_RTC_CONVERT_BCD2BIN(LL_RTC_DATE_GetMonth(RTC)), 
@@ -237,6 +243,17 @@ void Show_RTC_Calendar(void)
   sprintf((char*)debug1,"%d to %d Deg    ",tmpf, targetAngle); 
   OLED_Info(aShowTime,aShowDate,debug1,"");
 
+  if (curMinute!=minute) {
+    ResetParser();
+    curMinute=minute;
+    packetBuffer[0]='E';packetBuffer[1]='X';packetBuffer[2]='G';
+    packetBuffer[3]=clockMode;
+    packetBuffer[4]=(uint8_t)tmpf/2;
+    packetBuffer[5]=0;
+    packetBuffer[6 ] = CalculateCRC8(&packetBuffer[1], 5);
+    ntp=0;
+    UART1_Write(packetBuffer, 7);
+  }
 
 } 
 
@@ -272,7 +289,7 @@ int moveClock(int val) {
   * @param  None
   * @retval None
   */
-void Configure_RTC_Calendar(uint32_t y,uint32_t m,uint32_t d,uint32_t hour,uint32_t minute)
+void Configure_RTC_Calendar(uint32_t y,uint32_t m,uint32_t d,uint32_t hour,uint32_t minute,uint32_t second)
 {
   int ytmp=y+2000;
   int dtmp=d;
@@ -293,7 +310,7 @@ void Configure_RTC_Calendar(uint32_t y,uint32_t m,uint32_t d,uint32_t hour,uint3
   
   /*##-4- Configure the Time ################################################*/
   /* Set Time: 11:59:55 PM*/
-  LL_RTC_TIME_Config(RTC, LL_RTC_TIME_FORMAT_PM, __LL_RTC_CONVERT_BIN2BCD(hour),  __LL_RTC_CONVERT_BIN2BCD(minute), 0x00);
+  LL_RTC_TIME_Config(RTC, LL_RTC_TIME_FORMAT_PM, __LL_RTC_CONVERT_BIN2BCD(hour),  __LL_RTC_CONVERT_BIN2BCD(minute),  __LL_RTC_CONVERT_BIN2BCD(second));
   
   /*##-5- Exit of initialization mode #######################################*/
   Exit_RTC_InitMode();
@@ -319,6 +336,7 @@ void setClockModeUI(void ) {
       if ((key & KEY_PRESSED_BACK) > 0  && ((tickCount - prevTickCount) > 250)) { // middle button to confirm
           OLED_Clear();
           menuActive=0;
+          curMinute=0;    // send to UART
           StoreCurrentParameters();
           return;
       }
@@ -371,7 +389,7 @@ void setTimeDateUI(void) {
       change++;
       if (change>4) {
         OLED_Clear();
-        Configure_RTC_Calendar(year,month,day,hour,minute);
+        Configure_RTC_Calendar(year,month,day,hour,minute,0);
         menuActive=0;
         return;
       }

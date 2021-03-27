@@ -147,7 +147,7 @@ int main(void)
 
     Configure_RTC_Clock();
     Configure_RTC();
-    Configure_RTC_Calendar(22,1,1,18,30);
+    Configure_RTC_Calendar(22,1,1,18,30,00);
     OLED_ShowString(0,0,"RTC Clock init...ok");
 
 
@@ -418,184 +418,17 @@ void InvokeBootloader()
 // Parse bytes received from the UART
 void ParseBytes(uint8_t data)
 {
-  uint8_t parseState = Serial_Parse(data);
+//  uint8_t parseState = Serial_Parse(data);
+   parseBuffer[pbIndex] = data;
 
-  if (parseState == PARSE_STATUS_NEW_PACKET)
-  {
-    switch(parseBuffer[1])
-    {
-      case SERIAL_MSG_READVALUE:
-      if (parseBuffer[2] == SERIAL_MSG_READVALUE_SOURCE_STATUS)
-        {
-          struct Serial_Msg_Status status;
-          status.statusBitField = 0;
-          status.statusBitField |= Motor_ENmode_flag << SERIAL_MSG_STATUS_ENABLED;
-          status.statusBitField |= enmode << SERIAL_MSG_STATUS_MODE;
-
-          uint16_t len = Serial_GeneratePacket(SERIAL_MSG_ANGLE, &status, sizeof(status));
-          UART1_Write(packetBuffer, len);
-        }
-        if (parseBuffer[2] == SERIAL_MSG_READVALUE_SOURCE_ANGLE)
-        {
-          struct Serial_Msg_Angle aa;
-          aa.angle = ReadAngle() * 0.021972f;
-
-          uint16_t len = Serial_GeneratePacket(SERIAL_MSG_ANGLE, &aa, sizeof(aa));
-          UART1_Write(packetBuffer, len);
-        }
-        if (parseBuffer[2] == SERIAL_MSG_READVALUE_SOURCE_ANGERROR)
-        {
-          struct Serial_Msg_AngleError ae;
-          ae.error = pid_e * 0.021972;
-
-          uint16_t len = Serial_GeneratePacket(SERIAL_MSG_ANGERROR, &ae, sizeof(ae));
-          UART1_Write(packetBuffer, len);
-        }
-      break;
-
-      case SERIAL_MSG_GETPARAM:
-      {
-        uint8_t len = 0;
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_KP)
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_KP, &kp, 2);
-        else if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_KI)
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_KI, &ki, 2);
-        else if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_KD)
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_KD, &kd, 2);
-        else if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_CURRENT)
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_CURRENT, &Currents, 1);
-        else if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_STEPSIZE)
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_STEPSIZE, &stepangle, 1);
-        else if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_ENDIR)
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_ENDIR, &Motor_ENmode_flag, 1);
-        else if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_MOTORDIR) 
-          len = Serial_GeneratePacket(SERIAL_MSG_PARAM_MOTORDIR, &Motor_Dir, 1);
-        else
-        {
-          // Parameter not found
-        }
-        UART1_Write(packetBuffer, len);
-      }
-      break;
-
-      case SERIAL_MSG_SETPARAM:
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_KP)
-          kp = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_KI)
-          ki = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_KD)
-          kd = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_STEPSIZE)
-          stepangle = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_CURRENT)
-          Currents = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_ENDIR)
-          Motor_ENmode_flag = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-        if (parseBuffer[2] == SERIAL_MSG_PARAM_SOURCE_MOTORDIR)
-          Motor_Dir = (int16_t)((parseBuffer[3] << 8) | parseBuffer[4]);
-        
-      break;
-
-      case SERIAL_MSG_COMMAND:
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_STEP)
-        {
-          // Get direction
-          uint8_t direction = parseBuffer[3];
-
-          SoftStep(direction);
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_STEP_FORWARD)
-        {
-          uint16_t step = parseBuffer[3];
-          step = (step << 8) | parseBuffer[4];
-
-          uint16_t cur = parseBuffer[5];
-          cur = (cur << 8) | parseBuffer[6];
-
-          dir = 0;
-          FineStep(step, cur);
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_STEP_BACK)
-        {
-          uint16_t step = parseBuffer[3];
-          step = (step << 8) | parseBuffer[4];
-
-          uint16_t cur = parseBuffer[5];
-          cur = (cur << 8) | parseBuffer[6];
-
-          dir = 1;
-          FineStep(step, cur);
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_MOVE)
-        {
-          uint16_t steps = parseBuffer[3];
-          steps = (steps << 8) | parseBuffer[4];
-
-          softMoveStepCount = steps;
-          softMoveDirection = parseBuffer[5];
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_STORAGE_SAVE)
-        {
-          StoreCurrentParameters();
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_MODE_ENABLE)
-        {
-          SoftEnable = 1;
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_MODE_DISABLE)
-        {
-          SoftEnable = 0;
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_MODE_CLOSELOOP)
-        {
-          // Changing modes require states to be reset
-          if (closemode == 0)
-            PID_Cal_value_init();
-          closemode = 1;
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_MODE_OPENLOOP)
-        {
-          // Changing modes require states to be reset
-          if (closemode == 1)
-            PID_Cal_value_init();
-          closemode = 0;
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_STREAM_ANGLE)
-        {
-          if (parseBuffer[3] > 0)
-          {
-            streamAngle = true;
-            tuningMode = true;
-          }
-          else
-          {
-            streamAngle = false;
-            tuningMode = false;
-          }
-        }
-        if (parseBuffer[2] == SERIAL_MSG_COMMAND_JUMP_BOOTLOADER)
-        {
-          ShowBootloaderScreen();
-          InvokeBootloader();
-        }
-
-      break;
-    } 
-    /*
-    UART1_SendByte(msgLength);
-
-    for (int i = 0; i < msgLength; i++)
-      UART1_Write(parseBuffer[i]);
-      */
-
+   // Hour Minutes Seconds Year (0-99) Month Day IP-Part1 IP-Part22 IP-Part3 IP Part4
+  if (pbIndex==12 &&  parseBuffer[0]=='R' && parseBuffer[1]=='E' &&  parseBuffer[2]=='S' ) {
+        ResetParser();
+        Configure_RTC_Calendar((uint32_t)parseBuffer[6],(uint32_t)parseBuffer[7],(uint32_t)parseBuffer[8],(uint32_t)parseBuffer[3],(uint32_t)parseBuffer[4],(uint32_t)parseBuffer[5]);
+        ntp=1;
   }
-  
+  if (pbIndex>20)     ResetParser();
+  pbIndex++;
 }
 
 
