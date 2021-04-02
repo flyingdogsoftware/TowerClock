@@ -185,7 +185,8 @@ void Configure_RTC_Clock(void)
 
 int curSecond=0;
 int calViewClear=0;
-int curMinute=0;
+int curMinute=-1;
+uint8_t stopClock=0; 
 /**
   * @brief  Display the current time and date.
   * @param  None
@@ -227,23 +228,26 @@ void Show_RTC_Calendar(void)
 
       
   tmpf=ReadAngle() * 0.021972f;
-  switch(clockMode) {
-        case CLOCK_MODE_SECOND: targetAngle=moveClock(second);   break;
-        case CLOCK_MODE_MINUTE: targetAngle=moveClock(minute);   break;
-        case CLOCK_MODE_HOUR:   
-          temp=hour; 
-          if (temp>12) temp-=12;
-          temp--; // 0-11
-          targetAngle=moveClock(hour*5+minute/12);   
-        break;
-        default:
-          clockMode=CLOCK_MODE_SECOND;  
+  if (!stopClock) {
+    switch(clockMode) {
+          case CLOCK_MODE_SECOND: targetAngle=moveClock(second);   break;
+          case CLOCK_MODE_MINUTE: targetAngle=moveClock(minute);   break;
+          case CLOCK_MODE_HOUR:   
+            temp=hour; 
+            if (temp>12) temp-=12;
+            temp--; // 0-11
+            targetAngle=moveClock(hour*5+minute/12);   
+          break;
+          default:
+            clockMode=CLOCK_MODE_SECOND;  
+    }    
   }
+
   
   sprintf((char*)debug1,"%d to %d Deg    ",tmpf, targetAngle); 
   OLED_Info(aShowTime,aShowDate,debug1,"");
 
-  if (curMinute!=minute) {
+  if (curMinute!=minute) {      // ask for new NTP time and send motor mode before
     ResetParser();
     curMinute=minute;
     packetBuffer[0]='E';packetBuffer[1]='X';packetBuffer[2]='G';
@@ -336,7 +340,7 @@ void setClockModeUI(void ) {
       if ((key & KEY_PRESSED_BACK) > 0  && ((tickCount - prevTickCount) > 250)) { // middle button to confirm
           OLED_Clear();
           menuActive=0;
-          curMinute=0;    // send to UART
+          curMinute=-1;    // send to UART
           StoreCurrentParameters();
           return;
       }

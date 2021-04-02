@@ -11,6 +11,8 @@
 #define CLOCK_MODE_HOUR 2     // move motor in hours 12 + minutes between hours
 uint8_t clockMode;                  // 0, 1 and 2 see above
 uint8_t ntp;                        // 1: got time signal from ntp
+uint8_t stopClock;               // 1: no automatic motor movement by time
+int curMinute;                  // set to -1 and stopClock to 0 to auto set clock from NTP time
 
 void     SystemClock_Config(void);
 void     Configure_RTC_Clock(void);

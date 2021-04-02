@@ -420,15 +420,74 @@ void ParseBytes(uint8_t data)
 {
 //  uint8_t parseState = Serial_Parse(data);
    parseBuffer[pbIndex] = data;
-
+    if (parseBuffer[0]!='R' &&  parseBuffer[0]!='G' &&  parseBuffer[0]!='S'  &&  parseBuffer[0]!='M') {   // Result, Go, Start, Mode
+       ResetParser();
+       parseBuffer[pbIndex] = data;
+    }
    // Hour Minutes Seconds Year (0-99) Month Day IP-Part1 IP-Part22 IP-Part3 IP Part4
   if (pbIndex==12 &&  parseBuffer[0]=='R' && parseBuffer[1]=='E' &&  parseBuffer[2]=='S' ) {
         ResetParser();
         Configure_RTC_Calendar((uint32_t)parseBuffer[6],(uint32_t)parseBuffer[7],(uint32_t)parseBuffer[8],(uint32_t)parseBuffer[3],(uint32_t)parseBuffer[4],(uint32_t)parseBuffer[5]);
         ntp=1;
+        return;
   }
-  if (pbIndex>20)     ResetParser();
-  pbIndex++;
+  /** move clock hand up,right,down or left **/
+  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='U' ) {
+        ResetParser();
+        moveClock(0);
+        stopClock=1;
+        ntp=0;
+        return;
+
+  }
+  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='R' ) {
+        ResetParser();
+        moveClock(15);
+        stopClock=1;
+        ntp=0;
+        return;
+
+  }
+  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='D' ) {
+        ResetParser();
+        moveClock(30);
+        stopClock=1;
+        ntp=0;
+        return;
+  }
+  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='L' ) {
+        ResetParser();
+        moveClock(45);
+        stopClock=1;
+        ntp=0;
+        return;
+  }
+  /** start running clock **/
+  if (pbIndex==2 &&  parseBuffer[0]=='S' && parseBuffer[1]=='T' &&  parseBuffer[2]=='A' ) {
+      curMinute=-1;   
+      stopClock=0;
+      ResetParser();
+        return;
+  }
+  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='S' ) {
+      curMinute=-1;    // send to UART
+      clockMode=CLOCK_MODE_SECOND;
+      StoreCurrentParameters();
+  }
+  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='M' ) {
+      curMinute=-1;   
+      clockMode=CLOCK_MODE_MINUTE;
+      StoreCurrentParameters();
+  }
+  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='H' ) {
+      curMinute=-1;  
+      clockMode=CLOCK_MODE_HOUR;
+      StoreCurrentParameters();
+  }
+
+
+  if (pbIndex>15)     ResetParser();
+  else pbIndex++;
 }
 
 
