@@ -484,7 +484,11 @@ void ParseBytes(uint8_t data)
       clockMode=CLOCK_MODE_HOUR;
       StoreCurrentParameters();
   }
-
+  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='C' ) {
+      curMinute=-1;  
+      clockMode=CLOCK_MODE_CRAZY;
+      StoreCurrentParameters();
+  }
 
   if (pbIndex>15)     ResetParser();
   else pbIndex++;

@@ -9,6 +9,7 @@
 #define CLOCK_MODE_SECOND 0     // move motor in seconds 1-60
 #define CLOCK_MODE_MINUTE 1     // move motor in minutes 1-60
 #define CLOCK_MODE_HOUR 2     // move motor in hours 12 + minutes between hours
+#define CLOCK_MODE_CRAZY 3      // move to random angle each second
 uint8_t clockMode;                  // 0, 1 and 2 see above
 uint8_t ntp;                        // 1: got time signal from ntp
 uint8_t stopClock;               // 1: no automatic motor movement by time

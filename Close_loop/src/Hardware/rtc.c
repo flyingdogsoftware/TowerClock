@@ -236,8 +236,10 @@ void Show_RTC_Calendar(void)
             temp=hour; 
             if (temp>12) temp-=12;
             temp--; // 0-11
-            targetAngle=moveClock(hour*5+minute/12);   
+            targetAngle=moveClock(hour*5+minute*5/60);   
           break;
+           case CLOCK_MODE_CRAZY:
+              targetAngle=moveRandom();   break;
           default:
             clockMode=CLOCK_MODE_SECOND;  
     }    
@@ -260,7 +262,14 @@ void Show_RTC_Calendar(void)
   }
 
 } 
+int moveRandom() {
 
+  int steps=(rand() % (200 + 1 - 0));
+  dir= (rand() % (1 + 1 - 0));
+
+  for(int i=0;i<steps;i++) OneStep();
+  return steps;
+}
 /** wrong direction
  * move clock to an absolute value 0-59 (seconds or minute )
  * for hour just call moveClock(hour*5)
@@ -276,18 +285,50 @@ void Show_RTC_Calendar(void)
   dir=1;
    for(int i=0;i<steps;i++) OneStep();
 }*/
+
+/**
+ *  Main function for moving clock hand. move to a value 0-59 (for seconds, minutes). For hours just recalculate to 0-59 before.
+*/
 int moveClock(int val) {
-  int angle,targetAngle,steps;
+  int angle,targetAngle,steps,steps2;
   angle=ReadAngle() * 0.021972f;  // Umrechnung in Grad
   targetAngle=360-(val*6);
   steps=abs(angle-targetAngle)/1.8;
   if ((angle-targetAngle)<0) {
       steps=(360-targetAngle+angle)/1.8;
   }
-  dir=0;
-  for(int i=0;i<steps;i++) OneStep();
+
+  steps2=abs(targetAngle-angle)/1.8;
+  if ((targetAngle-angle)<0) {
+      steps2=(360-angle+targetAngle)/1.8;
+  }
+  // always just shortest path
+  if (steps<=steps2) {
+    dir=0;
+    for(int i=0;i<steps;i++) OneStep();
+  } else {
+    dir=1;
+    for(int i=0;i<steps2;i++) OneStep();
+  }
+ 
+
   return targetAngle;
 } 
+
+
+/*void moveClock(int val) {
+  int angle,targetAngle,steps;
+  angle=ReadAngle() * 0.021972f;  // Umrechnung in Grad
+  targetAngle=val*6;
+  steps=abs(targetAngle-angle)/1.8;
+  if ((targetAngle-angle)<=0) {
+      steps=(360-angle+targetAngle)/1.8;
+  }
+  dir=1;
+   for(int i=0;i<steps;i++) OneStep();
+}*/
+
+
 /**
   * @brief  Configure the current time and date.
   * @param  None
