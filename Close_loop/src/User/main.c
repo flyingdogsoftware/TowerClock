@@ -418,78 +418,109 @@ void InvokeBootloader()
 // Parse bytes received from the UART
 void ParseBytes(uint8_t data)
 {
-//  uint8_t parseState = Serial_Parse(data);
    parseBuffer[pbIndex] = data;
-    if (parseBuffer[0]!='R' &&  parseBuffer[0]!='G' &&  parseBuffer[0]!='S'  &&  parseBuffer[0]!='M') {   // Result, Go, Start, Mode
+   // check if it is a proper command
+  if (parseBuffer[0]!='R' &&  parseBuffer[0]!='G' &&  parseBuffer[0]!='S'  &&  parseBuffer[0]!='M' &&  parseBuffer[0]!='T') {   // Result, Go, Start, Mode, Top
        ResetParser();
        parseBuffer[pbIndex] = data;
-    }
-   // Hour Minutes Seconds Year (0-99) Month Day IP-Part1 IP-Part22 IP-Part3 IP Part4
+  }
+   // RES Hour Minutes Seconds Year (0-99) Month Day IP-Part1 IP-Part22 IP-Part3 IP Part4
   if (pbIndex==12 &&  parseBuffer[0]=='R' && parseBuffer[1]=='E' &&  parseBuffer[2]=='S' ) {
         ResetParser();
         Configure_RTC_Calendar((uint32_t)parseBuffer[6],(uint32_t)parseBuffer[7],(uint32_t)parseBuffer[8],(uint32_t)parseBuffer[3],(uint32_t)parseBuffer[4],(uint32_t)parseBuffer[5]);
+        ip_1=parseBuffer[9];ip_2=parseBuffer[10];ip_3=parseBuffer[11];ip_4=parseBuffer[12];
         ntp=1;
         return;
   }
-  /** move clock hand up,right,down or left **/
-  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='U' ) {
+  if (pbIndex==2) { // 3 byte commands
+    /** move clock hand up,right,down or left GOU, GOR, GOD, GOL**/
+    if (parseBuffer[0]=='G' && parseBuffer[1]=='O') {   // GO
+        if (parseBuffer[2]=='U' ) {
+              ResetParser();
+              targetAngle=moveClock(0);
+              stopClock=1;
+              ntp=0;
+              return;
+        }
+        if (parseBuffer[2]=='R' ) {
+              ResetParser();
+              targetAngle=moveClock(15);
+              stopClock=1;
+              ntp=0;
+              return;
+        }
+        if (parseBuffer[2]=='D' ) {
+              ResetParser();
+              targetAngle=moveClock(30);
+              stopClock=1;
+              ntp=0;
+              return;
+        }
+        if (parseBuffer[2]=='L' ) {
+              ResetParser();
+              targetAngle=moveClock(45);
+              stopClock=1;
+              ntp=0;
+              return;
+        }      
+    }
+     
+    // STA start running clock 
+    if (parseBuffer[0]=='S' && parseBuffer[1]=='T' &&  parseBuffer[2]=='A' ) {
+        curMinute=-1;   
+        stopClock=0;
         ResetParser();
-        moveClock(0);
-        stopClock=1;
-        ntp=0;
         return;
+    }  
+    // set mode
+    if (parseBuffer[0]=='M' && parseBuffer[1]=='O') {   // MO
+      // MOS mode seconds (not running precise)
+      if (parseBuffer[2]=='S' ) {
+          ResetParser();
+          curMinute=-1;    // send to UART
+          clockMode=CLOCK_MODE_SECOND;
+          StoreCurrentParameters();
+          return;
+      }
+      // MOM mode minutes 
+      if (parseBuffer[2]=='M' ) {
+          ResetParser();
+          curMinute=-1;   
+          clockMode=CLOCK_MODE_MINUTE;
+          StoreCurrentParameters();
+          return;
+      }
+      // MOH mode hours+minutes (needs sensor input)
+      if (parseBuffer[2]=='H' ) {
+          ResetParser();
+          curMinute=-1;  
+          clockMode=CLOCK_MODE_HOUR;
+          StoreCurrentParameters();
+          return;
+      }
+      // MOC crazy mode
+      if (parseBuffer[2]=='C' ) {
+          ResetParser();
+          curMinute=-1;  
+          clockMode=CLOCK_MODE_CRAZY;
+          StoreCurrentParameters();
+          return;
+      }
+    }
 
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='R' ) {
+    /* TOP top sensor signal detected - reading correction value
+    sensor has to be connected to ESP board
+    this sensor could be also connected directly to STM32 board so check in main loop there and call topCorrection() as well
+    */
+    if (parseBuffer[0]=='T' && parseBuffer[1]=='O' &&  parseBuffer[2]=='P' ) {
         ResetParser();
-        moveClock(15);
-        stopClock=1;
-        ntp=0;
+        topCorrection();
         return;
+    }
+  } // 3 byte commands
 
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='D' ) {
-        ResetParser();
-        moveClock(30);
-        stopClock=1;
-        ntp=0;
-        return;
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='G' && parseBuffer[1]=='O' &&  parseBuffer[2]=='L' ) {
-        ResetParser();
-        moveClock(45);
-        stopClock=1;
-        ntp=0;
-        return;
-  }
-  /** start running clock **/
-  if (pbIndex==2 &&  parseBuffer[0]=='S' && parseBuffer[1]=='T' &&  parseBuffer[2]=='A' ) {
-      curMinute=-1;   
-      stopClock=0;
-      ResetParser();
-        return;
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='S' ) {
-      curMinute=-1;    // send to UART
-      clockMode=CLOCK_MODE_SECOND;
-      StoreCurrentParameters();
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='M' ) {
-      curMinute=-1;   
-      clockMode=CLOCK_MODE_MINUTE;
-      StoreCurrentParameters();
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='H' ) {
-      curMinute=-1;  
-      clockMode=CLOCK_MODE_HOUR;
-      StoreCurrentParameters();
-  }
-  if (pbIndex==2 &&  parseBuffer[0]=='M' && parseBuffer[1]=='O' &&  parseBuffer[2]=='C' ) {
-      curMinute=-1;  
-      clockMode=CLOCK_MODE_CRAZY;
-      StoreCurrentParameters();
-  }
 
+  
   if (pbIndex>15)     ResetParser();
   else pbIndex++;
 }
@@ -1094,7 +1125,7 @@ void OneStep(void)
   // shift, which is 1024 elements. The output function has a multiplier of 12.5 so to 
   // move a single step we need to move 1024 / 12.5 = 81.92 units. 
   Output(81.92f * stepnumber, 80);     
-  LL_mDelay(10);
+  LL_mDelay(15);
 }
 
 
