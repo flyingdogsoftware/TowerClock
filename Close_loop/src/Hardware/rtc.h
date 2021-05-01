@@ -14,6 +14,11 @@ uint8_t clockMode;                  // 0, 1 and 2 see above
 uint8_t ntp;                        // 1: got time signal from ntp
 uint8_t stopClock;               // 1: no automatic motor movement by time
 int curMinute;                  // set to -1 and stopClock to 0 to auto set clock from NTP time
+uint8_t ip_1;                   // IP address
+uint8_t ip_2;
+uint8_t ip_3;
+uint8_t ip_4;
+int targetAngle;
 
 void     SystemClock_Config(void);
 void     Configure_RTC_Clock(void);
@@ -26,4 +31,5 @@ void     Show_RTC_Calendar(void);
 int moveClock(int val);
 void setTimeDateUI(void);
 void setClockModeUI(void );
+void topCorrection(void);
 

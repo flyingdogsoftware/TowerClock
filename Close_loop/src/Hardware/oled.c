@@ -164,9 +164,9 @@ void OLED_ShowNum(uint8_t x,uint8_t y,uint32_t num,uint8_t len,uint8_t size)
 void OLED_Info(char *l1,char* l2,char *l3,char *l4) {
   	
   OLED_ShowString(0,0,l1);
-  OLED_ShowString(0,20,l2);
-  OLED_ShowString(0,40,l3);	
-  OLED_ShowString(0,60,l4);	
+  OLED_ShowString(0,16,l2);
+  OLED_ShowString(0,32,l3);	
+  OLED_ShowString(0,48,l4);	
 
 }
 

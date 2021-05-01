@@ -186,15 +186,23 @@ void Configure_RTC_Clock(void)
 int curSecond=0;
 int calViewClear=0;
 int curMinute=-1;
+int targetAngle=0;
+
+int topCorrectionAngle=0;
+
 uint8_t stopClock=0; 
-/**
+uint8_t ip_1=0;                   // IP address
+uint8_t ip_2=0;
+uint8_t ip_3=0;
+uint8_t ip_4=0;
+#/**
   * @brief  Display the current time and date.
   * @param  None
   * @retval None
   */
 void Show_RTC_Calendar(void)
 {
-  int second,minute,hour;
+  int second=0,minute=0,hour=0;
   uint32_t temp,temp2=0;
   int32_t tmpf=0;
   second=__LL_RTC_CONVERT_BCD2BIN(LL_RTC_TIME_GetSecond(RTC));
@@ -212,7 +220,6 @@ void Show_RTC_Calendar(void)
   char  aShowDate[30] = {0};
   char debug1[30]={0};
   char debug2[30]={0};
-  int targetAngle=0;
   /* Note: need to convert in decimal value in using __LL_RTC_CONVERT_BCD2BIN helper macro */
   /* Display time Format : hh:mm:ss */
   if (!ntp) {
@@ -227,7 +234,6 @@ void Show_RTC_Calendar(void)
           2000 + __LL_RTC_CONVERT_BCD2BIN(LL_RTC_DATE_GetYear(RTC)));
 
       
-  tmpf=ReadAngle() * 0.021972f;
   if (!stopClock) {
     switch(clockMode) {
           case CLOCK_MODE_SECOND: targetAngle=moveClock(second);   break;
@@ -244,10 +250,15 @@ void Show_RTC_Calendar(void)
             clockMode=CLOCK_MODE_SECOND;  
     }    
   }
+  tmpf=ReadAngle() * 0.021972f;
 
-  
-  sprintf((char*)debug1,"%d to %d Deg    ",tmpf, targetAngle); 
-  OLED_Info(aShowTime,aShowDate,debug1,"");
+
+  sprintf((char*)debug1,"%d to %d-%d    ",tmpf, targetAngle,topCorrectionAngle); 
+  if (ip_1)
+    sprintf((char*)debug2,"%d.%d.%d.%d",ip_1,ip_2,ip_3,ip_4); 
+  else sprintf((char*)debug2,"No Internet"); 
+
+  OLED_Info(aShowTime,aShowDate,debug1,debug2);
 
   if (curMinute!=minute) {      // ask for new NTP time and send motor mode before
     ResetParser();
@@ -262,6 +273,10 @@ void Show_RTC_Calendar(void)
   }
 
 } 
+
+/**
+ * Crazy mode
+ * */
 int moveRandom() {
 
   int steps=(rand() % (200 + 1 - 0));
@@ -270,6 +285,12 @@ int moveRandom() {
   for(int i=0;i<steps;i++) OneStep();
   return steps;
 }
+void topCorrection(void) {
+  topCorrectionAngle=ReadAngle() * 0.021972f;  // minute hand up now eq to 360, 0 deg if it would be mounted directly on motor axis
+}
+
+
+
 /** wrong direction
  * move clock to an absolute value 0-59 (seconds or minute )
  * for hour just call moveClock(hour*5)

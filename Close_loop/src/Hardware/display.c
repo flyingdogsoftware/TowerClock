@@ -82,7 +82,7 @@ void ShowStartupScreen()
 
 void ShowInfoScreen()
 {
-  OLED_Info("Tower Clock","Version 0.5","","");
+  OLED_Info("Tower Clock","Version 2","","");
 }
 
 

@@ -44,7 +44,10 @@ After the installation is successful, you need to reload again. After the Reload
 - After the compilation is successful, a new firmware.bin file will be generated in the .pioenvs\BIGTREE_S42B_V1_0 directory. 
 
 ### how to update firmware
-Click the arrow directly ,the flashing will be finished 
-![`@2CT9{)%{A0W5J)EJ6 07H](https://user-images.githubusercontent.com/46896566/71973083-f785da00-3248-11ea-93db-8e88d3fd414b.png)
+- You need a ST-Link device connected to stepper control board via 4 cables and your computer via USB
+
+- Install ST-Link, download: https://www.st.com/en/development-tools/stsw-link004.html 
+
+- execute   st-link_cli.exe -c SWD -p "Path to your project\firmware\S42BV1.0\.pioenvs\BIGTREE_S42B_V1_0\firmware.bin"  0x08000000 -Rst  -Run
 
 
