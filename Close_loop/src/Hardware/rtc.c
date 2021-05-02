@@ -248,8 +248,8 @@ void Show_RTC_Calendar(void)
           case CLOCK_MODE_HOUR:   
             temp=hour; 
             if (temp>12) temp-=12;
-            temp--; // 0-11
-            targetAngle=moveClock(hour*5+minute*5/60);   
+         //   temp--; // 0-11
+            targetAngle=moveClock(temp*5+(minute*5/60));   
           break;
            case CLOCK_MODE_CRAZY:
               targetAngle=moveRandom();   break;
@@ -318,12 +318,13 @@ void calibrateHour(void) {
 */
 int moveClock(int val) {
   if (calibateHourMode) return;
-  int angle,targetAngle,steps,steps2;
+  int angle,targetA,steps,steps2;
   angle=ReadAngle() * 0.021972f;  // Umrechnung in Grad 
 
-  targetAngle=360-(val*6);
-  targetAngle=targetAngle+topCorrectionAngle;  
-  if (targetAngle>360) targetAngle=targetAngle-360;
+  targetA=360-(val*6);
+  targetA=targetA+topCorrectionAngle;  
+  if (targetA>360) targetA=targetA-360;
+  if (targetA<0) targetA=0; // should never happen
   steps=abs(angle-targetAngle)/1.8;
   if ((angle-targetAngle)<0) {
       steps=(360-targetAngle+angle)/1.8;
@@ -345,7 +346,7 @@ int moveClock(int val) {
   }
  
 
-  return targetAngle;
+  return targetA;
 } 
 
 
