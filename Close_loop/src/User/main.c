@@ -42,7 +42,6 @@ static void MX_TIM6_Init(void);
 static void MX_IWDG_Init(void);
 
 
-void SetModeCheck(void);
 void ReadDIPSwitches();
 void Output(int32_t theta,uint8_t effort);
 int16_t Mod(int32_t xMod,int16_t mMod);
@@ -53,7 +52,6 @@ void WriteValue(uint16_t RegAdd,uint16_t RegValue);
 uint16_t ReadState(void);
 uint16_t ReadAngle(void);
 void PID_Cal_value_init(void);
-void restart_init(void);
 void OledMenu(void);
 // Perform software motor step
 void SoftStep(uint8_t direction);
@@ -104,8 +102,6 @@ uint8_t Calibration_flag=0;             //
 volatile uint8_t Data_update_flag =1;   //
 volatile uint16_t Data_update_Count =0; //25ms
 
-uint8_t Second_Calibrate_flag=0;        //
-int16_t Motor_speed =0;
 int16_t wap1=0;
 int16_t wap2=0;
 int16_t Motor_speed_count=0; 
@@ -131,7 +127,6 @@ volatile uint8_t Motor_ENmode_flag=0;   //
 
 uint16_t table1[15];                    //
 volatile uint8_t Reset_status_flag=0;                    
-
 
 int main(void)
 {
@@ -159,21 +154,16 @@ int main(void)
 
     LL_mDelay(100);
 
-    FlashUnlock();
-    Calibration_flag = FlashReadHalfWord(Data_Store_Address);
-    clockMode = FlashReadHalfWord(Data_Store_Address+6);
-    FlashLock();
-                                        
-    Reset_status_flag = 1;                                
+    STMFLASH_Read(Data_Store_Address, table1, sizeof(table1));
+    clockMode=table1[6];
+    if (clockMode==CLOCK_MODE_HOUR)   calibrateHour();    // go to calibration after reboot for hour
 
     // Read parameters                                                         
-    STMFLASH_Read(Data_Store_Address, table1, sizeof(table1)); 
     
     // Check DIP switches
     // TODO: Maybe remove DIP switch options, can already
     // be set via OLED and serial. Will anyway be overriden.           
     ReadDIPSwitches();
-    //SetModeCheck();                 
     
     // Check encoder health.
     // TODO: Add message to OLED also
@@ -218,7 +208,6 @@ int main(void)
     BuildMenu(); 
     ShowInfoScreen();
 
-//    restart_init();   
 
 
 //    moveClock(0);
@@ -228,56 +217,6 @@ int main(void)
     while(1)
     { 	
 
-/**************************************************************/
-// Manage the reset of states between motor enable, to avoid sudden
-// movement if the motor moved while being disabled.  
-        if(Motor_ENmode_flag == 1)   //Motor_ENmode_flag is eindlik die variable wat die polarity van EN pin bepaal
-        {
-            if((ENIN==1) || (SoftEnable)) 
-            {                            
-                restart_init();    // Word, elke keer geroep maar net eerste keer uitgevoer. Reset TIM1, PID en enable motor                           
-            }
-            else
-            {
-                Reset_status_flag++;     //0++
-              //  Reset_status_flag = 1;
-            }
-        }
-        else if(Motor_ENmode_flag == 0)
-        {
-            if((ENIN==0) || (SoftEnable))
-            {
-                restart_init(); //               
-            }
-            else
-            {
-                Reset_status_flag++;     //0++
-            //    Reset_status_flag = 1;
-            }
-        }
-
-        if(Reset_status_flag == 1)
-        {       
-          enmode=0;
-          Reset_status_flag ++;           //1++
-          //  Reset_status_flag = 2;
-
-          // Disable motor current output
-          WRITE_REG(TIM3->CCR1, 0);
-          WRITE_REG(TIM3->CCR2, 0);
-            
-          PID_Cal_value_init();           //
-                
-          wap1=0;
-          wap2=0;
-
-          Data_update_flag=1;
-        }
-        else
-        {
-          if(Reset_status_flag>3)
-            Reset_status_flag--;
-        }
 
         // Check if bytes are available on UART1 for parsing
         if (UART1_BytesToRead() > 0)
@@ -288,48 +227,16 @@ int main(void)
 
         // Handle OLED menu navigation
         OledMenu(); 
-        
-        // Motor live display is slow!
-        // Lower update rate to 10Hz and deactivate when streaming
-        if (tickCount > (prevLoopTickCount + 100))
-          if ((menuActive == 0) && (!tuningMode))
-          {
-            Motor_data_dis();
 
-            prevLoopTickCount = tickCount;
-          }
+        if (menuActive == 0)  {
+                Show_RTC_Calendar();
+        } 
 
-      //  if (streamAngle)  StreamAngle();
-
-        // So step teen 1ms tick counts, dalk meer akkuraat om op n timer se interrupt te sit later.
-        //if (tickCount > prevLoopTickCount)
-        if (tim6Counter != prevTim6Counter)
-          SoftMoveStep();       
-        if (menuActive == 0)     Show_RTC_Calendar();
-
-      prevTim6Counter = tim6Counter;
 
     }
 }
 
 
-
-//Restart init 
-void restart_init(void)
-{
-  if(Reset_status_flag != 0)
-  {
-    LL_TIM_DisableCounter(TIM1);
-
-    // Reset the step counter (TIM1) and PID variables
-    LL_TIM_SetCounter(TIM1,0);                   
-    PID_Cal_value_init();           
-      
-    LL_TIM_EnableCounter(TIM1);
-  }
-  enmode=1;
-  Reset_status_flag=0;
-}
 
  
 void OledMenu(void)
@@ -495,6 +402,7 @@ void ParseBytes(uint8_t data)
           ResetParser();
           curMinute=-1;  
           clockMode=CLOCK_MODE_HOUR;
+          calibrateHour();
           StoreCurrentParameters();
           return;
       }
@@ -934,78 +842,6 @@ void ReadDIPSwitches()
 }
 
 
-void SetModeCheck(void)
-{
-  // WriteValue(WRITE_MOD2_VALUE,MOD2_VALUE);
-  
-  // // Read status register
-  // uint16_t state = ReadState();
-  // // Check for Magnitude out of limit error
-  // if(state&0x0080)
-  // {
-  //   for(uint8_t m=0;m<10;m++)
-  //   {
-  //     LED_H;
-	//     LL_mDelay(200);
-	//     LED_L;
-	//     LL_mDelay(200);	
-  //   } 
-  // }
-
-//   if(Calibration_flag != 0xAA)
-//   {
-// loop: if(CAL==0)
-//         CalibrateEncoder();
-        
-//         if(1 != Second_Calibrate_flag){
-//           if((SET1==1)&&(SET2==1))//
-//             stepangle=16;//
-//           else if((SET1==0)&&(SET2==1))
-//             stepangle=8;//
-//           else if((SET1==1)&&(SET2==0))
-//             stepangle=4;//
-//           else
-//             stepangle=2;//
-//         }
-//     }
-//     else if(Calibration_flag == 0xAA && Second_Calibrate_flag ==1)
-//     {
-// //      Second_Calibrate_flag=0;
-//       goto loop;
-//     }
-
-    // if(CLOSE==0 )//|| Motor_mode==0
-    // {//
-    //     closemode=1;
-    // #if 1       
-    //     r=*(volatile uint16_t*)((ReadValue(READ_ANGLE_VALUE)>>1)*2+0x08008000); 
-    //     s_sum=r;   //
-    //     y=r;
-    //     y_1=y;
-    //     yw=y;  
-    //     yw_1=yw;
-    // #endif
-    // }
-    // else
-    // {
-    //     closemode=0;
-    // }
-
-    // if(CalibrateEncoder_finish_flag ==1)
-    // {   
-    //     CalibrateEncoder_finish_flag=0; 
-    //     Second_Calibrate_flag=0;
-    //     Prompt_show();               //
-    //     for(;;){
-    //         LED_F;
-    //         LL_mDelay(200);
-    //     }
-    // }
-//    else{
-//        NVIC_EnableIRQ(EXTI0_1_IRQn);
-//        NVIC_EnableIRQ(EXTI2_3_IRQn);
-//    }
-}
 
 
 // Energize coils. The electrical angle is given by theta and the current limit by effort.
@@ -1125,7 +961,7 @@ void OneStep(void)
   // shift, which is 1024 elements. The output function has a multiplier of 12.5 so to 
   // move a single step we need to move 1024 / 12.5 = 81.92 units. 
   Output(81.92f * stepnumber, 80);     
-  LL_mDelay(15);
+  LL_mDelay(25);
 }
 
 

@@ -189,6 +189,8 @@ int curMinute=-1;
 int targetAngle=0;
 
 int topCorrectionAngle=0;
+int stepsCtr=0;
+int calibateHourMode=0;
 
 uint8_t stopClock=0; 
 uint8_t ip_1=0;                   // IP address
@@ -205,6 +207,11 @@ void Show_RTC_Calendar(void)
   int second=0,minute=0,hour=0;
   uint32_t temp,temp2=0;
   int32_t tmpf=0;
+
+  if (stepsCtr) {   // moveClock now
+    OneStep();
+    stepsCtr--;
+  }
   second=__LL_RTC_CONVERT_BCD2BIN(LL_RTC_TIME_GetSecond(RTC));
   if (second==curSecond) return;
   if (!calViewClear) {
@@ -253,14 +260,14 @@ void Show_RTC_Calendar(void)
   tmpf=ReadAngle() * 0.021972f;
 
 
-  sprintf((char*)debug1,"%d to %d-%d    ",tmpf, targetAngle,topCorrectionAngle); 
+  sprintf((char*)debug1,"%d to %d,%d    ",tmpf, targetAngle,topCorrectionAngle); 
   if (ip_1)
     sprintf((char*)debug2,"%d.%d.%d.%d",ip_1,ip_2,ip_3,ip_4); 
   else sprintf((char*)debug2,"No Internet"); 
 
   OLED_Info(aShowTime,aShowDate,debug1,debug2);
 
-  if (curMinute!=minute) {      // ask for new NTP time and send motor mode before
+  if (curMinute!=minute || !ip_1) {      // ask for new NTP time and send motor mode before
     ResetParser();
     curMinute=minute;
     packetBuffer[0]='E';packetBuffer[1]='X';packetBuffer[2]='G';
@@ -285,35 +292,38 @@ int moveRandom() {
   for(int i=0;i<steps;i++) OneStep();
   return steps;
 }
+
+/**
+ * setting correction angle for hour hand after getting sensor signal 
+ * */
 void topCorrection(void) {
   topCorrectionAngle=ReadAngle() * 0.021972f;  // minute hand up now eq to 360, 0 deg if it would be mounted directly on motor axis
+  if (calibateHourMode) {   // in calibration? w
+    calibateHourMode=0;
+    stepsCtr=0; // next second it should go to correct time
+  }
 }
 
-
-
-/** wrong direction
- * move clock to an absolute value 0-59 (seconds or minute )
- * for hour just call moveClock(hour*5)
+/**
+ *  hour calibration: moves around max. 3 times or until it gets top signal
  * */
-/*void moveClock(int val) {
-  int angle,targetAngle,steps;
-  angle=ReadAngle() * 0.021972f;  // Umrechnung in Grad
-  targetAngle=val*6;
-  steps=abs(targetAngle-angle)/1.8;
-  if ((targetAngle-angle)<=0) {
-      steps=(360-angle+targetAngle)/1.8;
-  }
-  dir=1;
-   for(int i=0;i<steps;i++) OneStep();
-}*/
+void calibrateHour(void) {
+  stepsCtr=600;
+  dir=0;
+  calibateHourMode=1;
+}
 
 /**
  *  Main function for moving clock hand. move to a value 0-59 (for seconds, minutes). For hours just recalculate to 0-59 before.
 */
 int moveClock(int val) {
+  if (calibateHourMode) return;
   int angle,targetAngle,steps,steps2;
-  angle=ReadAngle() * 0.021972f;  // Umrechnung in Grad
+  angle=ReadAngle() * 0.021972f;  // Umrechnung in Grad 
+
   targetAngle=360-(val*6);
+  targetAngle=targetAngle+topCorrectionAngle;  
+  if (targetAngle>360) targetAngle=targetAngle-360;
   steps=abs(angle-targetAngle)/1.8;
   if ((angle-targetAngle)<0) {
       steps=(360-targetAngle+angle)/1.8;
@@ -326,10 +336,12 @@ int moveClock(int val) {
   // always just shortest path
   if (steps<=steps2) {
     dir=0;
-    for(int i=0;i<steps;i++) OneStep();
+    stepsCtr=steps;
+//    for(int i=0;i<steps;i++) OneStep();
   } else {
     dir=1;
-    for(int i=0;i<steps2;i++) OneStep();
+    stepsCtr=steps2;
+//    for(int i=0;i<steps2;i++) OneStep();
   }
  
 

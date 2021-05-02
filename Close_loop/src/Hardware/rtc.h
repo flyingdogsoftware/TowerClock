@@ -19,6 +19,7 @@ uint8_t ip_2;
 uint8_t ip_3;
 uint8_t ip_4;
 int targetAngle;
+int stepsCtr;
 
 void     SystemClock_Config(void);
 void     Configure_RTC_Clock(void);
@@ -32,4 +33,4 @@ int moveClock(int val);
 void setTimeDateUI(void);
 void setClockModeUI(void );
 void topCorrection(void);
-
+void calibrateHour(void);

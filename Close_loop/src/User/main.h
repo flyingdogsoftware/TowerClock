@@ -240,7 +240,6 @@ extern void Output(int32_t theta,uint8_t effort);
 extern uint16_t ReadValue(uint16_t RegValue);
 extern uint16_t ReadAngle(void);
 
-
 #ifdef __cplusplus
  extern "C" {
 #endif
