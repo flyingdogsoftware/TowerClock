@@ -1,8 +1,8 @@
 ## Tower Clock firmware for BIGTREETECH S42B closed loop stepper motors 
 
 Custom firmware for S42BV1.2 closed loop stepper motors (Stm-32) for Real Tower Clock project.
-In back display it shows user interface for setting mode like hur/minute with the two buttons.
-Also ESP-01 is needed for WiFi, Web user interface and NTP
+In back display it shows user interface for setting mode like hour/minute with the two buttons.
+Also ESP-01 is needed for WiFi, web user interface and NTP
 
 Project page: https://hackaday.io/project/178777-real-tower-clock-version-20
 
